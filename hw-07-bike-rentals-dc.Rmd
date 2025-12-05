@@ -1,21 +1,21 @@
 ---
 title: "HW 07 - Bike rentals in DC"
 output: 
-  tufte::tufte_html:
-    css: ../hw.css
-    tufte_variant: "envisioned"
-    highlight: pygments
   tufte::tufte_handout:
     latex_engine: xelatex
     highlight: pygments
     keep_tex: true
     citation_package: natbib
+  tufte::tufte_html:
+    css: ../hw.css
+    tufte_variant: "envisioned"
+    highlight: pygments
 link-citations: true
 ---
 
 ```{r include = FALSE}
 knitr::opts_chunk$set(
-  eval = FALSE,
+  eval = TRUE,
   out.width = "80%",
   fig.asp = 0.618,
   fig.width = 10,
@@ -24,7 +24,7 @@ knitr::opts_chunk$set(
 ```
 
 ```{r photo, fig.margin = TRUE, echo = FALSE, fig.width = 3, fig.cap = "Photo by Viktor Kern on Unsplash", eval = TRUE}
-knitr::include_graphics("img/viktor-kern-UdGEXZtlx-E-unsplash.jpg")
+#knitr::include_graphics("img/viktor-kern-UdGEXZtlx-E-unsplash.jpg")
 ```
 
 Bike sharing systems are new generation of traditional bike rentals where whole process from membership, rental and return back has become automatic.
@@ -79,18 +79,111 @@ The original data sources are <http://capitalbikeshare.com/system-data> and <htt
 
 1.  Recode the `season` variable to be a factor with meaningful level names as outlined in the codebook, with spring as the baseline level.
 
+```{r}
+dcbike <- dcbikeshare %>%
+  mutate(
+    season = factor(
+      season,
+      levels = c(1, 2, 3, 4),
+      labels = c("Spring", "Summer", "Fall", "Winter")
+    )
+  )
+
+dcbike %>% count(season)
+```
+
+ANSWER: Here I recoded `season` as a factor with meaningful labels. I set the levels in the order Spring, Summer, Fall, Winter, so **Spring is the baseline** in models.
+
+
 2.  Recode the binary variables `holiday` and `workingday` to be factors with levels no (0) and yes (1), with no as the baseline level.
+
+```{r}
+dcbike <- dcbike %>%
+  mutate(
+    holiday = factor(holiday,
+                     levels = c(0, 1),
+                     labels = c("no", "yes")),
+    workingday = factor(workingday,
+                        levels = c(0, 1),
+                        labels = c("no", "yes"))
+  )
+
+dcbike %>% count(holiday)
+dcbike %>% count(workingday)
+```
+
+ANSWER: I converted `holiday` and `workingday` into factors with levels `"no"` and `"yes"`, so `"no"` is the baseline category.
+
 
 3.  Recode the `yr` variable to be a factor with levels 2011 and 2012, with 2011 as the baseline level.
 
+```{r}
+dcbike <- dcbike %>%
+  mutate(
+    yr = factor(yr,
+                levels = c(0, 1),
+                labels = c("2011", "2012"))
+  )
+
+dcbike %>% count(yr)
+```
+
+ANSWER: I recoded `yr` so 0 becomes “2011” and 1 becomes “2012”, and set **2011 as the baseline**.
+
+
 4.  Recode the `weathersit` variable as 1 - clear, 2 - mist, 3 - light precipitation, and 4 - heavy precipitation, with clear as the baseline.
+
+```{r}
+dcbike <- dcbike %>%
+  mutate(
+    weathersit = factor(
+      weathersit,
+      levels = c(1, 2, 3, 4),
+      labels = c("clear", "mist", "light_precip", "heavy_precip")
+    )
+  )
+
+dcbike %>% count(weathersit)
+```
+
+ANSWER: `weathersit` is now a categorical weather variable with human-readable labels and **“clear” as the baseline**.
+
 
 5.  Calculate raw temperature, feeling temperature, humidity, and windspeed as their values given in the dataset multiplied by the maximum raw values stated in the codebook for each variable.
     Instead of writing over the existing variables, create new ones with concise but informative names.
 
+```{r}
+dcbike <- dcbike %>%
+  mutate(
+    temp_raw  = temp  * 41,   # degrees C
+    atemp_raw = atemp * 50,   # “feeling” temp (C)
+    hum_raw   = hum   * 100,  # percent
+    wind_raw  = windspeed * 67  # normalized back to raw units
+  )
+
+dcbike %>%
+  select(temp, temp_raw, atemp, atemp_raw, hum, hum_raw, windspeed, wind_raw) %>%
+  head()
+```
+
+  
+ANSWER: I created new variables for raw temperature (`temp_raw`), feeling temperature (`atemp_raw`), humidity (`hum_raw`), and wind speed (`wind_raw`) by multiplying by the max raw values from the codebook, instead of overwriting the original normalized columns.
+
+
 6.  Check that the sum of `casual` and `registered` adds up to `cnt` for each record.
     **Hint:** One way of doing this is to create a new column that takes on the value `TRUE` if they add up and `FALSE` if not, and then checking if all values in that column are `TRUE`s.
     But this is only one way, you might come up with another.
+
+```{r}
+dcbike <- dcbike %>%
+  mutate(sum_ok = (casual + registered) == cnt)
+
+dcbike %>%
+  summarise(all_ok = all(sum_ok))
+```
+
+AMSWER: I created a logical column `sum_ok` that checks whether `casual + registered` equals `cnt`. Then I used `all()` to confirm that this is true for **every row**, meaning the components match the total rentals.
+
 
 Knit, *commit, and push your changes to GitHub with an appropriate commit message. Make sure to commit and push all changed files so that your Git pane is cleared up afterwards.*
 
@@ -99,21 +192,38 @@ Knit, *commit, and push your changes to GitHub with an appropriate commit messag
 7.  Recreate the following visualization, and interpret it in context of the data. **Hint:** You will need to use one of the variables you created above. The temperature plotted is the feeling temperature.
 
 ```{r fig.fullwidth = TRUE, echo=FALSE, eval=TRUE}
-dcbikeshare %>%
-  mutate(atemp_raw = atemp * 50) %>%
-  ggplot(mapping = aes(x = dteday, y = cnt, color = atemp_raw)) +
-    geom_point(alpha = 0.7) +
-    labs(
-      title = "Bike rentals in DC, 2011 and 2012",
-      subtitle = "Warmer temperatures associated with more bike rentals",
-      x = "Date",
-      y = "Bike renrals",
-      color = "Temperature (C)"
-    ) +
+dcbike %>%
+  ggplot(aes(x = dteday, y = cnt, color = atemp_raw)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "Bike rentals in DC, 2011 and 2012",
+    subtitle = "Warmer temperatures associated with more bike rentals",
+    x = "Date",
+    y = "Bike rentals",
+    color = "Feeling Temp (°C)"
+  ) +
   theme_minimal()
 ```
 
+ANHSWER: This plot shows daily bike rentals over time, with point color representing feeling temperature. Warmer days (higher `atemp_raw`) tend to have **more bike rentals**, suggesting that people are more likely to bike when it feels warmer outside.
+
+
 8.  Create a visualization displaying the relationship between bike rentals and season. Interpret the plot in context of the data.
+
+```{r}
+dcbike %>%
+  ggplot(aes(x = season, y = cnt)) +
+  geom_boxplot() +
+  labs(
+    title = "Bike rentals by season",
+    x = "Season",
+    y = "Total daily bike rentals"
+  ) +
+  theme_minimal()
+```
+
+ANSWER: The distribution of daily bike rentals varies by season. Typically, bike rentals are **higher in warmer seasons** like Summer and Fall, and **lower in Winter**, which makes sense given weather and comfort for biking.
+
 
 Knit, *commit, and push your changes to GitHub with an appropriate commit message. Make sure to commit and push all changed files so that your Git pane is cleared up afterwards.*
 
@@ -122,13 +232,42 @@ Knit, *commit, and push your changes to GitHub with an appropriate commit messag
 9.  Fit a linear model predicting total daily bike rentals from daily temperature.
     Write the linear model, interpret the slope and the intercept in context of the data, and determine and interpret the $R^2$.
 
+```{r}
+mod_temp <- lm(cnt ~ temp_raw, data = dcbike)
+summary(mod_temp)
+broom::glance(mod_temp)
+```
+
+ANSWER: 
+
+ -     For each 1°C increase in daily temperature, the model predicts an average increase of **β₁** bike rentals, holding everything else constant.
+ 
+ - The predicted number of bike rentals when temperature is 0°C. (May not be realistic but is mathematically the starting point.)
+
+
+
 10. Fit another linear model predicting total daily bike rentals from daily feeling temperature.
     Write the linear model, interpret the slope and the intercept in context of the data, and determine and interpret the $R^2$.
     Is temperature or feeling temperature a better predictor of bike rentals?
     Explain your reasoning.
 
+
 11. Fit a model predicting total daily bike rentals from season, year, whether the day is holiday or not, whether the day is a workingday or not, the weather category, temperature, feeling temperature, humidity, and windspeed, as well as the interaction between feeling temperature and holiday.
     Record adjusted $R^2$ of the model.
+
+```{r}
+mod_full <- lm(
+  cnt ~ season + yr + holiday + workingday +
+    weathersit + temp_raw + atemp_raw +
+    hum_raw + wind_raw +
+    atemp_raw * holiday,
+  data = dcbike
+)
+
+broom::glance(mod_full)$adj.r.squared
+```
+
+ANSWER: Record the **adjusted R²** here (copy the numeric value from the output) and state: “The adjusted R² of the model is X, meaning about X×100% of variation in daily rentals is explained by this combination of predictors.”
 
 12. Write the linear models for holidays and non-holidays.
     Is the slope of temperature the same or different for these two models?
